@@ -340,7 +340,8 @@ async def parse_entry(entry, feed_link: Optional[str] = None):
             single.duration = itunes_duration
 
     EntryParsed.enclosures = enclosures or None
-
+    print(f"EntryParsed.title: {EntryParsed.title}")   
+    print(f"EntryParsed.content: {EntryParsed.content}")   
     return EntryParsed
 
 
