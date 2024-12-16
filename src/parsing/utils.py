@@ -17,6 +17,10 @@
 from __future__ import annotations
 from typing import Optional, Sequence, Union, Final, Iterable, Iterator
 
+import os
+import aiohttp
+import asyncio
+
 import re
 import string
 from contextlib import suppress
@@ -247,6 +251,42 @@ async def ensure_plain(s: str, enable_emojify: bool = False) -> str:
     ).strip()
     return emojify(s) if enable_emojify else s
 
+async def translate(text: str) -> str:
+    CLOUDFLARE_AUTH_TOKEN = os.environ.get('CLOUDFLARE_AUTH_TOKEN')
+    ACCOUNT_ID = os.environ.get('ACCOUNT_ID')
+    MODEL = os.environ.get('MODEL')
+    
+    # Check if required environment variables are set
+    if not all([CLOUDFLARE_AUTH_TOKEN, ACCOUNT_ID, MODEL]):
+        print("Missing required environment variables")
+        return text
+
+    url = f"https://api.cloudflare.com/client/v4/accounts/{ACCOUNT_ID}/ai/run/{MODEL}"
+    headers = {"Authorization": f"Bearer {CLOUDFLARE_AUTH_TOKEN}"}
+    payload = {
+        "messages": [
+            {"role": "system", "content": "say nothing but translate user input to Simple Chinese, just return only one answer"},
+            {"role": "user", "content": text}
+        ],
+        "temperature": 0
+    }
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, headers=headers, json=payload) as response:
+                if response.status == 200:
+                    result = await response.json()
+                    return result['result']['response']
+                else:
+                    print(f"API request failed with status {response.status}")
+                    return text
+                    
+    except aiohttp.ClientError as e:
+        print(f"Network error occurred: {str(e)}")
+        return text
+    except Exception as e:
+        print(f"Unexpected error occurred: {str(e)}")
+        return text
 
 async def parse_entry(entry, feed_link: Optional[str] = None):
     class EntryParsed:
@@ -341,7 +381,9 @@ async def parse_entry(entry, feed_link: Optional[str] = None):
 
     EntryParsed.enclosures = enclosures or None
     print(f"EntryParsed.title: {EntryParsed.title}")   
-    print(f"EntryParsed.content: {EntryParsed.content}")   
+    print(f"EntryParsed.content: {EntryParsed.content}")
+    EntryParsed.title = await translate(EntryParsed.title)   
+    EntryParsed.content = await translate(EntryParsed.content)   
     return EntryParsed
 
 
